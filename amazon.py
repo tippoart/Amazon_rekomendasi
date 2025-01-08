@@ -68,7 +68,7 @@ def recommendations(query, tf, tfidf_matrix, amazon_df, top=10):
     return results['judul_prosessing'].tolist()
 
 # Streamlit app
-st.title("Sistem Rekomendasi Produk Amazon")
+st.title("Sistem Rekomendasi Produk Teknologi Amazon")
 
 # Load and preprocess data
 file_path = "amazon.xlsx"
