@@ -58,19 +58,17 @@ def recommendations(query, tf, tfidf_matrix, amazon_df, top=10):
     top_indices = query_sim.argsort()[-top:][::-1]  # Sort from highest to lowest similarity
 
     recommended_products = amazon_df.iloc[top_indices]
-    results = recommended_products[['judul_prosessing', 'product_name']].reset_index(drop=True)
+    results = recommended_products[['judul_prosessing']].reset_index(drop=True)
 
     # If no matches are found
     if results.empty:
         return [f"Tidak ada produk amazon yang cocok dengan kata kunci '{query}'"]
 
     # Return results as a list of strings
-    return results.apply(
-        lambda row: f"{row['product_name']} (Preprocessed: {row['judul_prosessing']})", axis=1
-    ).tolist()
+    return results['judul_prosessing'].tolist()
 
 # Streamlit app
-st.title("Sistem Rekomendasi Produk Teknologi Amazon")
+st.title("Sistem Rekomendasi Produk Amazon")
 
 # Load and preprocess data
 file_path = "amazon.xlsx"
