@@ -36,8 +36,8 @@ def load_and_preprocess_data(file_path):
         st.stop()
 
     # Add preprocessed column if not exists
-    if 'judul_prosessing' not in amazon_df.columns:
-        amazon_df['judul_prosessing'] = amazon_df['product_name'].apply(clean_text)
+    if 'product_name_processing' not in amazon_df.columns:
+        amazon_df['product_name_processing'] = amazon_df['product_name'].apply(clean_text)
 
     amazon_df.reset_index(inplace=True, drop=True)
     return amazon_df
@@ -58,14 +58,14 @@ def recommendations(query, tf, tfidf_matrix, amazon_df, top=10):
     top_indices = query_sim.argsort()[-top:][::-1]  # Sort from highest to lowest similarity
 
     recommended_products = amazon_df.iloc[top_indices]
-    results = recommended_products[['judul_prosessing']].reset_index(drop=True)
+    results = recommended_products[['product_name_processing']].reset_index(drop=True)
 
     # If no matches are found
     if results.empty:
         return [f"Tidak ada produk amazon yang cocok dengan kata kunci '{query}'"]
 
     # Return results as a list of strings
-    return results['judul_prosessing'].tolist()
+    return results['product_name_processing'].tolist()
 
 # Streamlit app
 st.title("Sistem Rekomendasi Produk Amazon")
@@ -75,7 +75,7 @@ file_path = "amazon.xlsx"
 amazon_df = load_and_preprocess_data(file_path)
 
 # Compute TF-IDF matrix
-tf, tfidf_matrix = compute_tfidf_matrix(amazon_df['judul_prosessing'])
+tf, tfidf_matrix = compute_tfidf_matrix(amazon_df['product_name_processing'])
 
 query_input = st.text_input("Masukkan kata atau kalimat pencarian:")
 num_recommendations = st.slider("Jumlah rekomendasi amazon", min_value=1, max_value=30, value=5)
