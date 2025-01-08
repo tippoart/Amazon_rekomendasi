@@ -6,11 +6,11 @@ from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
 import streamlit as st
 
-
-
 # Preprocessing setup
 clean_spcl = re.compile(r'[/(){}\[\]\|@,;]')
 clean_symbol = re.compile(r'[^0-9a-z #+_]')
+
+# Create Sastrawi instances
 factory = StopWordRemoverFactory()
 stopword_list = factory.get_stop_words()
 stemmer_factory = StemmerFactory()
@@ -21,42 +21,63 @@ def clean_text(text):
     text = text.lower()
     text = clean_spcl.sub(' ', text)
     text = clean_symbol.sub('', text)
-    text = ' '.join(word for word in text.split() if word not in stopword_list)  # Hapus stopwords
+    text = ' '.join(word for word in text.split() if word not in stopword_list)  # Remove stopwords
     text = stemmer.stem(text)  # Stemming
     return text
 
-# Load dataset
-amazon_df = pd.read_csv('amazon.csv')
+@st.cache_data
+def load_and_preprocess_data(file_path):
+    # Load dataset
+    amazon_df = pd.read_excel(file_path)
 
-# Preprocess text data
-amazon_df['product_name'] = amazon_df['product_name'].apply(clean_text)
-amazon_df.reset_index(inplace=True, drop=True)
+    # Ensure required columns exist
+    if 'product_name' not in amazon_df.columns:
+        st.error("Kolom 'product_name' tidak ditemukan di dataset.")
+        st.stop()
 
-# Initialize TF-IDF Vectorizer
-tf = TfidfVectorizer(analyzer='word', ngram_range=(1, 3), min_df=1)
-tfidf_matrix = tf.fit_transform(amazon_df['product_name'])
-cos_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
+    # Add preprocessed column if not exists
+    if 'judul_prosessing' not in amazon_df.columns:
+        amazon_df['judul_prosessing'] = amazon_df['product_name'].apply(clean_text)
 
-# Recommendation function
-def recommendations(query, top=10):
+    amazon_df.reset_index(inplace=True, drop=True)
+    return amazon_df
+
+@st.cache_data
+def compute_tfidf_matrix(data):
+    # Initialize TF-IDF Vectorizer
+    tf = TfidfVectorizer(analyzer='word', ngram_range=(1, 3), min_df=1)
+    tfidf_matrix = tf.fit_transform(data)
+    return tf, tfidf_matrix
+
+def recommendations(query, tf, tfidf_matrix, amazon_df, top=10):
     query_cleaned = clean_text(query)
     query_vec = tf.transform([query_cleaned])  # Transform query into TF-IDF vector
-    query_sim = cosine_similarity(query_vec, tfidf_matrix).flatten()  # Similarity with all journals
+    query_sim = cosine_similarity(query_vec, tfidf_matrix).flatten()  # Similarity with all products
 
-    # Ambil indeks dengan skor similarity tertinggi
-    top_indices = query_sim.argsort()[-top:][::-1]  # Sort dari skor tertinggi ke terendah
+    # Get top indices with highest similarity
+    top_indices = query_sim.argsort()[-top:][::-1]  # Sort from highest to lowest similarity
 
-    recommended_journals = amazon_df.iloc[top_indices]
-    results = recommended_journals[['product_name', 'judul_prosessing']].reset_index(drop=True)
+    recommended_products = amazon_df.iloc[top_indices]
+    results = recommended_products[['judul_prosessing', 'product_name']].reset_index(drop=True)
 
-    # Jika tidak ada yang cocok
+    # If no matches are found
     if results.empty:
         return [f"Tidak ada produk amazon yang cocok dengan kata kunci '{query}'"]
 
-    return results
+    # Return results as a list of strings
+    return results.apply(
+        lambda row: f"{row['product_name']} (Preprocessed: {row['judul_prosessing']})", axis=1
+    ).tolist()
 
 # Streamlit app
-st.title("Sistem Rekomendasi Produk Amazon ")
+st.title("Sistem Rekomendasi Produk Teknologi Amazon")
+
+# Load and preprocess data
+file_path = "amazon.xlsx"
+amazon_df = load_and_preprocess_data(file_path)
+
+# Compute TF-IDF matrix
+tf, tfidf_matrix = compute_tfidf_matrix(amazon_df['judul_prosessing'])
 
 query_input = st.text_input("Masukkan kata atau kalimat pencarian:")
 num_recommendations = st.slider("Jumlah rekomendasi amazon", min_value=1, max_value=30, value=5)
@@ -64,14 +85,12 @@ num_recommendations = st.slider("Jumlah rekomendasi amazon", min_value=1, max_va
 if st.button("Cari Rekomendasi"):
     if query_input:
         with st.spinner("Mencari rekomendasi..."):
-            hasil_rekomendasi = recommendations(query_input, top=num_recommendations)
+            hasil_rekomendasi = recommendations(query_input, tf, tfidf_matrix, amazon_df, top=num_recommendations)
             st.write("Rekomendasi amazon untuk Anda:")
-            if isinstance(hasil_rekomendasi, list):  # Jika tidak ada hasil
-                st.write(hasil_rekomendasi[0])
-            else:  # Jika ada hasil
-                for idx, row in hasil_rekomendasi.iterrows():
-                    st.write(f"{idx + 1}. {row['judul_prosessing']}")
+            if isinstance(hasil_rekomendasi, list):  # If results are found
+                for idx, rekomendasi in enumerate(hasil_rekomendasi, start=1):
+                    st.write(f"{idx}. {rekomendasi}")
 
-# Tampilkan dataframe amazon untuk referensi
+# Display dataset for reference
 st.write("Dataset amazon:")
-st.dataframe(amazon_df[['judul', 'judul_prosessing']])
+st.dataframe(amazon_df[['judul_prosessing', 'product_name']])
