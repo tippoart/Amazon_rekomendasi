@@ -91,4 +91,4 @@ if st.button("Cari Rekomendasi"):
 
 # Display dataset for reference
 st.write("Dataset amazon:")
-st.dataframe(amazon_df[['judul_prosessing', 'product_name']])
+st.dataframe(amazon_df[['product_name_prosessing', 'product_name']])
