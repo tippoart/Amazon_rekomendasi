@@ -71,8 +71,10 @@ def recommendations(query, tf, tfidf_matrix, amazon_df, top=10):
     # Get top indices with highest similarity
     top_indices = query_sim.argsort()[-top:][::-1]  # Sort from highest to lowest similarity
 
-    recommended_products = amazon_df.iloc[top_indices]
-    results = recommended_products[['Item Purchased', 'Review Rating', 'Purchase Amount (USD)', 'Color', 'Size', 'Location']]
+    recommended_products = amazon_df.iloc[top_indices].copy()
+    recommended_products['Similarity (%)'] = (query_sim[top_indices] * 100).round(2)  # Add similarity as percentage
+
+    results = recommended_products[['Item Purchased', 'Review Rating', 'Purchase Amount (USD)', 'Color', 'Size', 'Location', 'Similarity (%)']]
 
     # If no matches are found
     if results.empty:
@@ -108,7 +110,8 @@ if st.button("Cari Rekomendasi"):
                     st.write(f"- **Color:** {item['Color']}")
                     st.write(f"- **Size:** {item['Size']}")
                     st.write(f"- **Location:** {item['Location']}")
-                    st.write("---")  
+                    st.write(f"- **Similarity:** {item['Similarity (%)']}%")
+                    st.write("---")
 
 # Display dataset for reference
 st.write("Product Trends All :")
