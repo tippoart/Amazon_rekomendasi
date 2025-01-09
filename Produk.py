@@ -92,7 +92,7 @@ amazon_df = load_and_preprocess_data(file_path)
 tf, tfidf_matrix = compute_tfidf_matrix(amazon_df['item processing'])
 
 query_input = st.text_input("Masukkan kata atau kalimat pencarian:")
-num_recommendations = st.slider("Jumlah rekomendasi amazon", min_value=1, max_value=30, value=5)
+num_recommendations = st.slider("Recommendation For You", min_value=1, max_value=30, value=5)
 
 if st.button("Cari Rekomendasi"):
     if query_input:
