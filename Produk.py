@@ -5,6 +5,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from Sastrawi.Stemmer.StemmerFactory import StemmerFactory
 from Sastrawi.StopWordRemover.StopWordRemoverFactory import StopWordRemoverFactory
 import streamlit as st
+import numpy as np
 
 # Preprocessing setup
 clean_spcl = re.compile(r'[/(){}\[\]\|@,;]')
@@ -65,23 +66,30 @@ def compute_tfidf_matrix(data):
 
 def recommendations(query, tf, tfidf_matrix, amazon_df, top=10):
     query_cleaned = clean_text(query)
-    query_vec = tf.transform([query_cleaned])  # Transform query into TF-IDF vector
-    query_sim = cosine_similarity(query_vec, tfidf_matrix).flatten()  # Similarity with all products
+    query_vec = tf.transform([query_cleaned])  
+    query_sim = cosine_similarity(query_vec, tfidf_matrix).flatten() 
+    top_indices = query_sim.argsort()[-top:][::-1]  
 
-    # Get top indices with highest similarity
-    top_indices = query_sim.argsort()[-top:][::-1]  # Sort from highest to lowest similarity
-
-    recommended_products = amazon_df.iloc[top_indices].copy()
-    recommended_products['Similarity (%)'] = (query_sim[top_indices] * 100).round(2)  # Add similarity as percentage
-
-    results = recommended_products[['Item Purchased', 'Review Rating', 'Purchase Amount (USD)', 'Color', 'Size', 'Location', 'Similarity (%)']]
-
-    # If no matches are found
+    recommended_products = amazon_df.iloc[top_indices]
+    results = recommended_products[['Item Purchased', 'Review Rating', 'Purchase Amount (USD)', 'Color', 'Size', 'Location']]
     if results.empty:
         return [f"Tidak ada produk amazon yang cocok dengan kata kunci '{query}'"]
 
+    # Adjust similarity based on review ratings
+    review_ratings = amazon_df.iloc[top_indices]['Review Rating'].values
+    query_rating = amazon_df[amazon_df['Item Purchased'] == query]['Review Rating'].values[0] if query in amazon_df['Item Purchased'].values else 5  
+    rating_diff = np.abs(review_ratings - query_rating)  
+
+    rating_factor = np.clip(1 - (rating_diff / 5), 0, 1)  
+
+    # Final similarity score is a weighted average of cosine similarity and rating factor
+    final_similarity = query_sim[top_indices] * rating_factor
+
+    # Add the adjusted similarity percentage to the results
+    results['Similarity (%)'] = [round(sim * 100, 2) for sim in final_similarity]
+
     # Convert to list of dictionaries
-    return results.to_dict('records')
+    return results.to_dict('records'), final_similarity
 
 # Streamlit app
 st.title("Shopping Trends Recommendation System")
@@ -99,20 +107,23 @@ num_recommendations = st.slider("Recommendation For You", min_value=1, max_value
 if st.button("Cari Rekomendasi"):
     if query_input:
         with st.spinner("Mencari rekomendasi..."):
-            hasil_rekomendasi = recommendations(query_input, tf, tfidf_matrix, amazon_df, top=num_recommendations)
+            hasil_rekomendasi, final_similarity = recommendations(query_input, tf, tfidf_matrix, amazon_df, top=num_recommendations)
             st.write("Rekomendasi amazon untuk Anda:")
 
-            if isinstance(hasil_rekomendasi, list): 
-                for idx, item in enumerate(hasil_rekomendasi, start=1):
-                    st.write(f"**{idx}. {item['Item Purchased']}**")
-                    st.write(f"- **Review Rating:** {item['Review Rating']}")
-                    st.write(f"- **Purchase Amount (USD):** {item['Purchase Amount (USD)']}")
-                    st.write(f"- **Color:** {item['Color']}")
-                    st.write(f"- **Size:** {item['Size']}")
-                    st.write(f"- **Location:** {item['Location']}")
-                    st.write(f"- **Similarity:** {item['Similarity (%)']}%")
-                    st.write("---")
+            # Display recommendations in cards
+            for idx, item in enumerate(hasil_rekomendasi, start=1):
+                st.markdown(f"""
+                <div style="border:1px solid #ddd; border-radius:10px; padding:20px; margin:10px 0;">
+                    <h3>{idx}. {item['Item Purchased']}</h3>
+                    <p><strong>Review Rating:</strong> {item['Review Rating']}</p>
+                    <p><strong>Purchase Amount (USD):</strong> {item['Purchase Amount (USD)']}</p>
+                    <p><strong>Color:</strong> {item['Color']}</p>
+                    <p><strong>Size:</strong> {item['Size']}</p>
+                    <p><strong>Location:</strong> {item['Location']}</p>
+                    <p><strong>Similarity:</strong> {item['Similarity (%)']}%</p>
+                </div>
+                """, unsafe_allow_html=True)
 
+    
 # Display dataset for reference
-st.write("Product Trends All :")
 st.dataframe(amazon_df[['item processing', 'Item Purchased', 'Review Rating', 'Purchase Amount (USD)', 'Color', 'Size', 'Location']])
