@@ -18,6 +18,8 @@ stemmer = stemmer_factory.create_stemmer()
 
 # Text cleaning function
 def clean_text(text):
+    if not isinstance(text, str):
+        return ""  # Handle non-string values
     text = text.lower()
     text = clean_spcl.sub(' ', text)
     text = clean_symbol.sub('', text)
@@ -31,13 +33,25 @@ def load_and_preprocess_data(file_path):
     amazon_df = pd.read_excel(file_path)
 
     # Ensure required columns exist
-    if 'product_name' not in amazon_df.columns:
-        st.error("Kolom 'product_name' tidak ditemukan di dataset.")
-        st.stop()
+    required_columns = ['Item Purchased', 'Review Rating', 'Purchase Amount (USD)', 'Color', 'Size', 'Location']
+    for col in required_columns:
+        if col not in amazon_df.columns:
+            st.error(f"Kolom '{col}' tidak ditemukan di dataset.")
+            st.stop()
 
-    # Add preprocessed column if not exists
-    if 'judul_prosessing' not in amazon_df.columns:
-        amazon_df['judul_prosessing'] = amazon_df['product_name'].apply(clean_text)
+    # Handle missing values
+    amazon_df['Item Purchased'].fillna("Unknown Product", inplace=True)
+    amazon_df['Review Rating'].fillna(amazon_df['Review Rating'].mean(), inplace=True)  # Fill numeric columns with mean
+    amazon_df['Purchase Amount (USD)'].fillna(amazon_df['Purchase Amount (USD)'].mean(), inplace=True)
+    amazon_df['Color'].fillna("Unknown Color", inplace=True)
+    amazon_df['Size'].fillna("Unknown Size", inplace=True)
+    amazon_df['Location'].fillna("Unknown Location", inplace=True)
+
+    # Remove noise (e.g., duplicate rows)
+    amazon_df.drop_duplicates(inplace=True)
+
+    # Add preprocessed column
+    amazon_df['item processing'] = amazon_df['Item Purchased'].apply(clean_text)
 
     amazon_df.reset_index(inplace=True, drop=True)
     return amazon_df
@@ -58,24 +72,24 @@ def recommendations(query, tf, tfidf_matrix, amazon_df, top=10):
     top_indices = query_sim.argsort()[-top:][::-1]  # Sort from highest to lowest similarity
 
     recommended_products = amazon_df.iloc[top_indices]
-    results = recommended_products[['judul_prosessing']].reset_index(drop=True)
+    results = recommended_products[['Item Purchased', 'Review Rating', 'Purchase Amount (USD)', 'Color', 'Size', 'Location']]
 
     # If no matches are found
     if results.empty:
         return [f"Tidak ada produk amazon yang cocok dengan kata kunci '{query}'"]
 
-    # Return results as a list of strings
-    return results['judul_prosessing'].tolist()
+    # Convert to list of dictionaries
+    return results.to_dict('records')
 
 # Streamlit app
-st.title("Sistem Rekomendasi Produk Teknologi Amazon")
+st.title("Shopping Trends Recommendation System")
 
 # Load and preprocess data
-file_path = "amazon.xlsx"
+file_path = "shopping_trends.xlsx"
 amazon_df = load_and_preprocess_data(file_path)
 
 # Compute TF-IDF matrix
-tf, tfidf_matrix = compute_tfidf_matrix(amazon_df['judul_prosessing'])
+tf, tfidf_matrix = compute_tfidf_matrix(amazon_df['item processing'])
 
 query_input = st.text_input("Masukkan kata atau kalimat pencarian:")
 num_recommendations = st.slider("Jumlah rekomendasi amazon", min_value=1, max_value=30, value=5)
@@ -85,10 +99,17 @@ if st.button("Cari Rekomendasi"):
         with st.spinner("Mencari rekomendasi..."):
             hasil_rekomendasi = recommendations(query_input, tf, tfidf_matrix, amazon_df, top=num_recommendations)
             st.write("Rekomendasi amazon untuk Anda:")
-            if isinstance(hasil_rekomendasi, list):  # If results are found
-                for idx, rekomendasi in enumerate(hasil_rekomendasi, start=1):
-                    st.write(f"{idx}. {rekomendasi}")
+
+            if isinstance(hasil_rekomendasi, list): 
+                for idx, item in enumerate(hasil_rekomendasi, start=1):
+                    st.write(f"**{idx}. {item['Item Purchased']}**")
+                    st.write(f"- **Review Rating:** {item['Review Rating']}")
+                    st.write(f"- **Purchase Amount (USD):** {item['Purchase Amount (USD)']}")
+                    st.write(f"- **Color:** {item['Color']}")
+                    st.write(f"- **Size:** {item['Size']}")
+                    st.write(f"- **Location:** {item['Location']}")
+                    st.write("---")  
 
 # Display dataset for reference
-st.write("Dataset amazon:")
-st.dataframe(amazon_df[['judul_prosessing', 'product_name']])
+st.write("Product Trends All:")
+st.dataframe(amazon_df[['item processing', 'Item Purchased', 'Review Rating', 'Purchase Amount (USD)', 'Color', 'Size', 'Location']])
