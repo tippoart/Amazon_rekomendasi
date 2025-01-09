@@ -91,7 +91,7 @@ amazon_df = load_and_preprocess_data(file_path)
 # Compute TF-IDF matrix
 tf, tfidf_matrix = compute_tfidf_matrix(amazon_df['item processing'])
 
-query_input = st.text_input("Masukkan kata atau kalimat pencarian:")
+query_input = st.text_input("Enter a search word or phrase :")
 num_recommendations = st.slider("Recommendation For You", min_value=1, max_value=30, value=5)
 
 if st.button("Cari Rekomendasi"):
@@ -111,5 +111,5 @@ if st.button("Cari Rekomendasi"):
                     st.write("---")  
 
 # Display dataset for reference
-st.write("Product Trends All:")
+st.write("Product Trends All :")
 st.dataframe(amazon_df[['item processing', 'Item Purchased', 'Review Rating', 'Purchase Amount (USD)', 'Color', 'Size', 'Location']])
